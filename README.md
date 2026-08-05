@@ -31,7 +31,7 @@ spec:
   lifecycle: production
 ```
 
-> **Kết quả:** Khi `orders-service` down, ai cần notify đã có sẵn, dễ dàng khi cần tra cứu.
+> **Kết quả:** Khi `orders-service` down, có thể xác định được nhanh tổng quan các services phụ thuộc, dễ dàng tra cứu khi cần.
 
 ---
 
