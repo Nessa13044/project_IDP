@@ -4,37 +4,149 @@
 
 ---
 
-## Giới thiệu
+## Điểm nghẽn trong hệ thống và nghiên cứu hướng giải quyết
 
-- Backstage là opensource, cung cấp một nền tảng cốt lõi giúp các đội ngũ Platform Engineering tự thiết kế một "giao diện duy nhất" (Single Pane of Glass). Nơi đây sẽ tập hợp toàn bộ hệ sinh thái từ microservices, hạ tầng, tài liệu cho đến các công cụ CI/CD về một mối.
-- Mọi người có thể tự đóng góp tính năng của mình, dễ maintain và phát triển mới.
-- Có nhiều plugin đa dạng có thể nhúng với các tool đang được triển khai tại team, mã nguồn mở có thể viết thêm plugin tuỳ chỉnh.
+> Để hiểu Backstage giải quyết được gì, hãy bắt đầu từ vấn đề thực tế ở production.
+
+Đây là vấn đề cốt lõi: khi một team có 10–20 microservices chạy trên production, thông tin về chúng nằm rải rác ở Confluence, Slack, GitLab, spreadsheet — và **không ai biết chắc ai đang chịu trách nhiệm cho cái gì**. Backstage Software Catalog giải quyết điều đó theo 5 hướng cụ thể:
+
+### 1. Xác định ownership — "Ai owns service này khi lúc 3 giờ sáng có incident?"
+
+#### Vấn đề
+
+Đây là câu hỏi đau nhất ở production. Không có catalog, bạn phải hỏi Slack, tìm commit author, gọi điện... Quá trình này tiêu tốn thời gian khi incident đang xảy ra.
+
+#### Giải pháp
+
+Với Backstage, mỗi service khai báo ownership trực tiếp trong file `catalog-info.yaml`:
+
+```yaml
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: orders-service
+spec:
+  type: service
+  owner: group:payment-team
+  lifecycle: production
+```
+
+> **Kết quả:** Khi `orders-service` down, ai cần notify đã có sẵn, dễ dàng khi cần tra cứu.
 
 ---
 
-## Các chức năng cốt lõi
+### 2. Dependency mapping — "Nếu tôi deploy, cái gì bị ảnh hưởng?"
 
-### 1. Software Catalog (Danh mục Phần mềm)
+#### Vấn đề
 
-Nó quản lý và hiển thị toàn bộ thực thể phần mềm trong công ty (microservices, ứng dụng, thư viện, data pipelines, API...).
+Ở production với 50+ service, bạn không thể nhớ hết dependency chain. Một thay đổi nhỏ ở upstream service có thể gây cascade failure cho nhiều downstream services.
 
-- **Giải quyết bài toán:** Trả lời nhanh các câu hỏi như: Dịch vụ này do team nào quản lý? Tài liệu API nằm ở đâu? Trạng thái vận hành hiện tại thế nào? Thông qua một file định nghĩa dạng YAML (`catalog-info.yaml`) nằm ngay trong repo của source code.
+#### Giải pháp
 
-### 2. Software Templates (Scaffolder - Khởi tạo dự án)
+Backstage vẽ dependency thành graph thông qua khai báo trong catalog:
 
-Công cụ này giúp hiện thực hóa khái niệm "Golden Paths" (Lộ trình chuẩn chỉnh) trong doanh nghiệp.
+```yaml
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: orders-service
+spec:
+  type: service
+  consumesApis:
+    - auth-api
+    - payment-api
+  providesApis:
+    - orders-api
+  dependsOn:
+    - component:postgres
+    - component:redis
+```
 
-- **Giải quyết bài toán:** Thay vì để developer tự copy-paste code cũ hoặc tự cấu hình thủ công, họ có thể lên Backstage chọn một template (ví dụ: Spring Boot Service hoặc Next.js App). Hệ thống sẽ tự động khởi tạo repo mới trên GitHub/GitLab, tích hợp sẵn pipeline CI/CD, file cấu hình Kubernetes, các công cụ quét bảo mật (SonarQube, Snyk) đúng theo tiêu chuẩn của tổ chức chỉ sau vài cú click.
+> **Kết quả:** Trước khi deploy, engineer nhìn vào graph biết ngay: *"nếu tôi thay đổi `auth-api`, 3 downstream services kia bị ảnh hưởng."*
 
-### 3. TechDocs (Tài liệu dạng Code)
+---
 
-Backstage áp dụng tư duy "Documentation-as-code".
+### 3. Lifecycle management — "Service nào đang deprecated? Service nào production-ready?"
 
-- **Giải quyết bài toán:** Developer viết tài liệu bằng file Markdown (`.md`) ngay bên cạnh mã nguồn. Khi push code, Backstage sẽ tự động thu thập, biên dịch và hiển thị tập trung trên portal. Tài liệu sẽ không bao giờ bị "bỏ quên" hay thất lạc trên Confluence hay Notion nữa.
+#### Vấn đề
 
-### 4. Hệ sinh thái Plugins (Khả năng mở rộng)
+Sau 2 năm vận hành, nhiều team để lại **"zombie services"** — chạy nhưng không ai maintain, không ai dám tắt. Chúng tiêu tốn tài nguyên và tạo ra rủi ro bảo mật tiềm ẩn.
 
-Backstage có một chợ plugin khổng lồ và cho phép tự viết plugin bằng React. Nó có thể kết nối trực tiếp với Kubernetes, ArgoCD, Prometheus, Jira, Datadog, AWS, v.v. Developer có thể xem trạng thái của các Pods, tiến độ deploy hay kết quả quét lỗi bảo mật của dịch vụ ngay trên giao diện Backstage mà không cần chuyển đổi tab qua lại giữa hàng chục công cụ khác nhau.
+#### Giải pháp
+
+Backstage giải quyết bằng trường `lifecycle` trong catalog:
+
+```yaml
+spec:
+  lifecycle: deprecated   # Các giá trị: experimental | production | deprecated
+```
+
+| Lifecycle        | Ý nghĩa                                           |
+|------------------|----------------------------------------------------|
+| `experimental`   | Đang phát triển, chưa sẵn sàng cho production      |
+| `production`     | Đang hoạt động ổn định trên production              |
+| `deprecated`     | Không còn được maintain, cần lên kế hoạch loại bỏ   |
+
+> **Kết quả:** Catalog filter ngay ra: *"có 3 service đang deprecated, team nào owns, nên xử lý thế nào?"*
+
+---
+
+### 4. Documentation-as-Code — "Docs ở đâu? Đúng hay lỗi thời?"
+
+#### Vấn đề
+
+Confluence/Notion docs thường **lỗi thời** vì tách rời khỏi code. Developer thay đổi API nhưng quên cập nhật docs, dẫn đến thông tin sai lệch và mất thời gian debug.
+
+#### Giải pháp
+
+Backstage dùng **TechDocs** — docs viết bằng Markdown nằm ngay trong repo, build cùng CI/CD pipeline. Khi code thay đổi, docs phải đi kèm — nếu không PR sẽ fail.
+
+**Cấu hình trong `catalog-info.yaml`:**
+
+```yaml
+metadata:
+  annotations:
+    backstage.io/techdocs-ref: dir:.
+```
+
+**Cấu trúc thư mục TechDocs:**
+
+```
+my-service/
+├── catalog-info.yaml
+├── mkdocs.yml
+├── docs/
+│   ├── index.md
+│   ├── architecture.md
+│   ├── runbook.md
+│   └── api-reference.md
+└── src/
+    └── ...
+```
+
+> **Kết quả:** Docs luôn đồng bộ với code. Không còn tình trạng *"docs trên Confluence nói API v1, nhưng production đang chạy v3"*.
+
+---
+
+### 5. Standards compliance — "Standards có được tuân thủ không?"
+
+#### Vấn đề
+
+Ở môi trường nhiều team, mỗi team làm theo cách riêng: team dùng Prometheus, team dùng Datadog; team có liveness probe, team không. Không có cách nào đánh giá tổng quan mức độ tuân thủ.
+
+#### Giải pháp
+
+Backstage có **Scorecards** — tự động đánh giá từng service theo checklist chuẩn:
+link tham khảo : https://roadie.io/product/tech-insights/
+| Tiêu chí                          | Trọng số | Mô tả                                              |
+|------------------------------------|----------|-----------------------------------------------------|
+| Health check endpoint              | 20%      | Service có expose `/health` hoặc `/readyz` không?   |
+| Runbook                            | 20%      | Có tài liệu xử lý sự cố không?                     |
+| K8s resource limits                | 25%      | Đã set CPU/Memory limits trong deployment chưa?     |
+| Alert rules                        | 20%      | Có cấu hình alert cho critical metrics không?       |
+| Owner defined                      | 15%      | Có khai báo team owner rõ ràng không?                |
+
+> **Kết quả:** Mỗi service được chấm điểm **0–100**. Tech Lead nhìn dashboard biết ngay team nào đang nợ kỹ thuật ở đâu.
 
 ---
 
