@@ -8,7 +8,7 @@
 
 > Để hiểu Backstage giải quyết được gì, hãy bắt đầu từ vấn đề thực tế ở production.
 
-Đây là vấn đề cốt lõi: khi một team có 10–20 microservices chạy trên production, thông tin về chúng nằm rải rác ở Confluence, Slack, GitLab, spreadsheet — và **không ai biết chắc ai đang chịu trách nhiệm cho cái gì**. Backstage Software Catalog giải quyết điều đó theo 5 hướng cụ thể:
+Đây là vấn đề cốt lõi: khi một team có hàng trăm microservices chạy trên production, thông tin về chúng nằm rải rác ở Confluence, Slack, GitLab, spreadsheet — và **không ai biết chắc ai đang chịu trách nhiệm cho cái gì**. Backstage Software Catalog giải quyết điều đó theo 5 hướng cụ thể:
 
 ### 1. Xác định ownership — "Ai owns service này khi lúc 3 giờ sáng có incident?"
 
