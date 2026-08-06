@@ -128,28 +128,6 @@ my-service/
 
 ---
 
-### 5. Standards compliance — "Standards có được tuân thủ không?"
-
-#### Vấn đề
-
-Ở môi trường nhiều team, mỗi team làm theo cách riêng: team dùng Prometheus, team dùng Datadog; team có liveness probe, team không. Không có cách nào đánh giá tổng quan mức độ tuân thủ.
-
-#### Giải pháp
-
-Backstage có **Scorecards** — tự động đánh giá từng service theo checklist chuẩn:
-link tham khảo : https://roadie.io/product/tech-insights/
-| Tiêu chí                          | Trọng số | Mô tả                                              |
-|------------------------------------|----------|-----------------------------------------------------|
-| Health check endpoint              | 20%      | Service có expose `/health` hoặc `/readyz` không?   |
-| Runbook                            | 20%      | Có tài liệu xử lý sự cố không?                     |
-| K8s resource limits                | 25%      | Đã set CPU/Memory limits trong deployment chưa?     |
-| Alert rules                        | 20%      | Có cấu hình alert cho critical metrics không?       |
-| Owner defined                      | 15%      | Có khai báo team owner rõ ràng không?                |
-
-> **Kết quả:** Mỗi service được chấm điểm **0–100**. Tech Lead nhìn dashboard biết ngay team nào đang nợ kỹ thuật ở đâu.
-
----
-
 ## CÁC MỤC ĐÃ HOÀN THÀNH
 
 ### 1. Tích hợp xác thực Keycloak với phân quyền RBAC
