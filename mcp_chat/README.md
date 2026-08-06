@@ -1,4 +1,4 @@
-# MCP Chat — Trợ lý AI cho Backstage Software Catalog
+# MCP Chat — Trợ lý AI cho Backstage Software Catalog - beta
 > Tích hợp Model Context Protocol (MCP) với Google Gemini AI, cho phép người dùng truy vấn Backstage Software Catalog bằng ngôn ngữ tự nhiên.
 ---
 ## Tổng quan
