@@ -1,6 +1,152 @@
-# MCP Chat — Trợ lý AI cho Backstage Software Catalog - beta
+# Optimize MCP Server Token Usage
+
 > Tích hợp Model Context Protocol (MCP) với Google Gemini AI, cho phép người dùng truy vấn Backstage Software Catalog bằng ngôn ngữ tự nhiên.
 ---
+## Lợi ích khi tích hợp vào Backstage Portal
+Đối với số lượng services ngày càng lớn trong môi trường production thì việc tìm kiếm thủ công trên UI Backstage rất tốn thời gian và khá phức tạp. Cần phải thao tác nhiều lần trên UI để xác định được mối liên hệ giữa chúng. Do đó, tận dụng nguồn dữ liệu catalog có sẵn trên Backstage để tối ưu hoá việc tìm kiếm bằng cách xây dựng một MCP.
+
+## Kết quả đạt được 
+Thực nghiệm trên một tập catalog với chứa data minh hoạ kiến trúc hệ thống về order, bigdata....Với tổng 62 entity
+- ví dụ về mô hình được lưu
+
+```mermaid
+graph TD
+    %% Định nghĩa các node
+    Spark["Component: data-processing-spark<br/>*(Service / Production)*"]
+    Airflow["Component: data-orchestrator-airflow<br/>*(Dependency Of)*"]
+    Pandera["Component: data-quality-pandera<br/>*(Depends On)*"]
+    Bronze["Resource: lakehouse-bronze-layer<br/>*(Depends On - Input)*"]
+    Silver["Resource: lakehouse-silver-layer<br/>*(Depends On - Output)*"]
+    Owner["Group: infrastructure-platform<br/>*(Owner)*"]
+    System["System: modern-data-lakehouse-platform<br/>*(Part Of)*"]
+
+    %% Các mối quan hệ
+    Airflow -->|triggers / dependencyOf| Spark
+    Spark -->|dependsOn| Pandera
+    Spark -->|dependsOn| Bronze
+    Spark -->|dependsOn| Silver
+    
+    Spark -.->|ownedBy| Owner
+    Spark -.->|partOf| System
+
+    %% Style
+    style Spark fill:#f9f,stroke:#333,stroke-width:2px
+    style Airflow fill:#bbf,stroke:#333,stroke-width:1px
+    style Pandera fill:#bbf,stroke:#333,stroke-width:1px
+    style Bronze fill:#fbb,stroke:#333,stroke-width:1px
+    style Silver fill:#fbb,stroke:#333,stroke-width:1px
+```
+```mermaid
+graph TD
+    %% Định nghĩa các node và kiểu
+    subgraph Organization ["Owner / Group"]
+        Group["👥 infrastructure-platform<br/>(Group)"]
+    end
+
+    subgraph System ["System Context"]
+        Sys["📦 modern-data-lakehouse-platform<br/>(System)"]
+    end
+
+    subgraph Component ["Components"]
+        Spark["⚙️ data-processing-spark<br/>(Component / Service)"]
+        Airflow["⚙️ data-orchestrator-airflow<br/>(Component / Service)"]
+        Pandera["📦 data-quality-pandera<br/>(Component / Library)"]
+    end
+
+    subgraph Resources ["Resources / Datasets"]
+        Bronze["🗄️ lakehouse-bronze-layer<br/>(Resource / Dataset)"]
+        Silver["🗄️ lakehouse-silver-layer<br/>(Resource / Dataset)"]
+    end
+
+    %% Các mối quan hệ
+    Spark -.->|ownedBy| Group
+    Spark -.->|partOf| Sys
+    
+    %% Dependencies của Spark
+    Spark ==>|dependsOn| Pandera
+    Spark ==>|dependsOn| Bronze
+    Spark ==>|dependsOn| Silver
+
+    %% Dependency Of
+    Airflow ==>|dependsOn / triggers| Spark
+
+    %% Styling
+    style Spark fill:#f9f,stroke:#333,stroke-width:3px
+    style Airflow fill:#bbf,stroke:#333,stroke-width:1px
+    style Pandera fill:#bbf,stroke:#333,stroke-width:1px
+    style Bronze fill:#fbf,stroke:#333,stroke-width:1px
+    style Silver fill:#fbf,stroke:#333,stroke-width:1px
+    style Sys fill:#ffd,stroke:#333,stroke-width:1px
+    style Group fill:#dfd,stroke:#333,stroke-width:1px
+```
+
+```mermaid
+graph TD
+    %% Lớp 0: Root Component
+    subgraph Lớp 0 - Root
+        POG[component:payment-orchestrator-gateway]
+    end
+
+    %% Lớp 1: APIs & Quan hệ trực tiếp
+    subgraph Lớp 1 - Direct APIs & Services
+        PGA[api:payment-gateway-api]
+        FCA[api:fraud-check-api]
+        PPA[api:payment-processor-api]
+        
+        POG -->|providesApi| PGA
+        POG -->|consumesApi| FCA
+        POG -->|consumesApi| PPA
+        
+        CWF[component:checkout-web-frontend] -->|consumesApi| PGA
+        PSTA[component:pos-store-terminal-app] -->|consumesApi| PGA
+        
+        FDS[component:fraud-detection-service] -->|providesApi| FCA
+        AAD[component:aiops-anomaly-detector] -->|consumesApi| FCA
+        
+        PPS[component:payment-processor-service] -->|providesApi| PPA
+    end
+
+    %% Lớp 2 & 3: Mở rộng các phụ thuộc sâu hơn
+    subgraph Lớp 2 & 3 - Extended Dependencies
+        %% Từ checkout-web-frontend
+        CWF -->|consumesApi| CPA[api:checkout-public-api]
+        CAG[component:checkout-api-gateway] -->|providesApi| CPA
+        MSA[component:mobile-shopping-app] -->|consumesApi| CPA
+
+        %% Từ pos-store-terminal-app
+        PSTA -->|consumesApi| EPA[api:edge-pos-api]
+        PSTA -->|consumesApi| SEA[api:store-edge-api]
+        EPC[component:edge-pos-controller] -->|providesApi| EPA
+        SEG[component:store-edge-gateway] -->|providesApi| SEA
+
+        %% Từ fraud-detection-service
+        FDS -->|consumesApi| AFMA[api:ai-fraud-model-api]
+        UBAE[component:user-behavior-ai-engine] -->|providesApi| AFMA
+
+        %% Từ aiops-anomaly-detector
+        AAD -->|consumesApi| AIA[api:aiops-ingestion-api]
+        ALC[component:aiops-log-collector] -->|providesApi| AIA
+        AAD -->|dependsOn| AIKES[resource:aiops-kafka-event-stream]
+        AAD -->|dependsOn| AITDB[resource:aiops-timeseries-prometheus-db]
+
+        %% Từ payment-processor-service
+        PPS -->|consumesApi| ARA[api:aiops-remediation-api]
+        AARE[component:aiops-auto-remediation-engine] -->|providesApi| ARA
+        PPS -->|dependsOn| GOKB[resource:global-order-kafka-bus]
+    end
+
+    %% Ownership & System context styling
+    POG -.->|ownedBy| User[user:11646-QKLoi]
+    POG -.->|partOf| Sys[system:omnichannel-checkout-system]
+```
+
+
+1. **Giảm thời gian tra cứu`1  :** .
+2. **Hạ rào cản sử dụng:** Người dùng không cần biết cấu trúc catalog hay cú pháp filter — chỉ cần hỏi bằng tiếng Việt hoặc tiếng Anh.
+3. **Cross-entity reasoning:** AI có thể kết hợp thông tin từ nhiều entity types (System, Component, API, Resource) trong một câu trả lời.
+4. **Hỗ trợ incident response:** Nhanh chóng xác định owner, dependencies, lifecycle status khi có sự cố.
+5. **Tiết kiệm chi phí:** Sử dụng model `gemini-3.5-flash-lite` với chi phí thấp, kết hợp result filtering để tối ưu token usage.
+
 ## Tổng quan
 **MCP Chat** là tính năng kết nối Backstage Software Catalog với Google Gemini AI thông qua giao thức **Model Context Protocol (MCP)**. Thay vì phải thao tác thủ công trên giao diện Backstage để tìm kiếm thông tin về services, systems, APIs hay ownership, người dùng chỉ cần **đặt câu hỏi bằng ngôn ngữ tự nhiên** và nhận được câu trả lời tổng hợp từ dữ liệu thực trong Catalog.
 ### Vấn đề cần giải quyết
@@ -42,7 +188,7 @@
 │  Expose các tools qua JSON-RPC:                                  │
 │  • catalog.get-catalog-entity                                    │
 │  • catalog.query-catalog-entities                                │
-│  • ...các tool khác tuỳ cấu hình                                 │
+│                                  │
 └──────────────────────┬───────────────────────────────────────────┘
                        │
                        ▼
@@ -200,9 +346,4 @@ python3 mcp_client.py \
 | Backend | Backstage MCP Actions Plugin |
 | Ngôn ngữ | Python 3.9+ |
 ---
-## Lợi ích khi tích hợp vào Backstage Portal
-1. **Giảm thời gian tra cứu:** Từ vài phút thao tác UI → vài giây chat.
-2. **Hạ rào cản sử dụng:** Người dùng không cần biết cấu trúc catalog hay cú pháp filter — chỉ cần hỏi bằng tiếng Việt hoặc tiếng Anh.
-3. **Cross-entity reasoning:** AI có thể kết hợp thông tin từ nhiều entity types (System, Component, API, Resource) trong một câu trả lời.
-4. **Hỗ trợ incident response:** Nhanh chóng xác định owner, dependencies, lifecycle status khi có sự cố.
-5. **Tiết kiệm chi phí:** Sử dụng model `gemini-3.5-flash-lite` với chi phí thấp, kết hợp result filtering để tối ưu token usage.
+
